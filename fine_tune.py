@@ -7,7 +7,7 @@ Only the last 'fc1_voc12' layers are being trained.
 """
 
 from __future__ import print_function
-
+import pdb
 import argparse
 from datetime import datetime
 import os
@@ -22,18 +22,18 @@ from deeplab_resnet import DeepLabResNetModel, ImageReader, decode_labels, inv_p
 IMG_MEAN = np.array((104.00698793,116.66876762,122.67891434), dtype=np.float32)
 
 BATCH_SIZE = 4
-DATA_DIRECTORY = '/home/VOCdevkit'
-DATA_LIST_PATH = './dataset/train.txt'
+DATA_DIRECTORY = 'data/holder'
+DATA_LIST_PATH = 'dataset/holderTrain.txt'
 IGNORE_LABEL = 255
-INPUT_SIZE = '321,321'
+INPUT_SIZE = '512,512'
 LEARNING_RATE = 1e-4
 NUM_CLASSES = 21
 NUM_STEPS = 20000
 RANDOM_SEED = 1234
-RESTORE_FROM = './deeplab_resnet.ckpt'
+RESTORE_FROM = 'pretrainmodel/deeplab_resnet.ckpt'
 SAVE_NUM_IMAGES = 2
 SAVE_PRED_EVERY = 100
-SNAPSHOT_DIR = './snapshots_finetune/'
+SNAPSHOT_DIR = 'snapshots_finetune/'
 
 def get_arguments():
     """Parse all the arguments provided from the CLI.
@@ -148,6 +148,7 @@ def main():
     # Pixel-wise softmax loss.
     loss = tf.nn.softmax_cross_entropy_with_logits(logits=prediction, labels=gt)
     reduced_loss = tf.reduce_mean(loss)
+    tf.summary.scalar('Cost',reduced_loss)
     
     # Processed predictions.
     raw_output_up = tf.image.resize_bilinear(raw_output, tf.shape(image_batch)[1:3,])
@@ -159,15 +160,23 @@ def main():
     labels_summary = tf.py_func(decode_labels, [label_batch, args.save_num_images, args.num_classes], tf.uint8)
     preds_summary = tf.py_func(decode_labels, [pred, args.save_num_images, args.num_classes], tf.uint8)
     
-    total_summary = tf.summary.image('images', 
+    image_summary = tf.summary.image('images', 
                                      tf.concat(axis=2, values=[images_summary, labels_summary, preds_summary]), 
                                      max_outputs=args.save_num_images) # Concatenate row-wise.
-    summary_writer = tf.summary.FileWriter(args.snapshot_dir,
-                                           graph=tf.get_default_graph())
-   
+
     # Define loss and optimisation parameters.
     optimiser = tf.train.AdamOptimizer(learning_rate=args.learning_rate)
     optim = optimiser.minimize(reduced_loss, var_list=trainable)
+    
+    
+        
+    for i in trainable:
+        tf.summary.histogram(i.name,i)
+
+    total_summary = tf.summary.merge_all()
+    
+    summary_writer = tf.summary.FileWriter(args.snapshot_dir,
+                                           graph=tf.get_default_graph())
     
     # Set up tf session and initialize variables. 
     config = tf.ConfigProto()

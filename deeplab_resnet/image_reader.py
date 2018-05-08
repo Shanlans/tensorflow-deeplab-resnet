@@ -84,7 +84,7 @@ def read_labeled_image_list(data_dir, data_list):
     masks = []
     for line in f:
         try:
-            image, mask = line.strip("\n").split(' ')
+            image, mask = line.strip("\n").split(' ')              
         except ValueError: # Adhoc for test.
             image = mask = line.strip("\n")
         images.append(data_dir + image)
@@ -108,11 +108,11 @@ def read_images_from_disk(input_queue, input_size, random_scale, random_mirror, 
     Returns:
       Two tensors: the decoded image and its mask.
     """
-
     img_contents = tf.read_file(input_queue[0])
     label_contents = tf.read_file(input_queue[1])
     
     img = tf.image.decode_jpeg(img_contents, channels=3)
+    img_shape = img.get_shape().as_list()
     img_r, img_g, img_b = tf.split(axis=2, num_or_size_splits=3, value=img)
     img = tf.cast(tf.concat(axis=2, values=[img_b, img_g, img_r]), dtype=tf.float32)
     # Extract mean.
@@ -122,6 +122,10 @@ def read_images_from_disk(input_queue, input_size, random_scale, random_mirror, 
 
     if input_size is not None:
         h, w = input_size
+        
+        if img_shape[0]!=h and img_shape[1]!=w:
+            img = tf.image.resize_images(img,[h,w])
+            label = tf.image.resize_images(label,[h,w])/255
 
         # Randomly scale the images and labels.
         if random_scale:
@@ -160,7 +164,7 @@ class ImageReader(object):
         self.input_size = input_size
         self.coord = coord
         
-        self.image_list, self.label_list = read_labeled_image_list(self.data_dir, self.data_list)
+        self.image_list, self.label_list = read_labeled_image_list(self.data_dir, self.data_list)       
         self.images = tf.convert_to_tensor(self.image_list, dtype=tf.string)
         self.labels = tf.convert_to_tensor(self.label_list, dtype=tf.string)
         self.queue = tf.train.slice_input_producer([self.images, self.labels],

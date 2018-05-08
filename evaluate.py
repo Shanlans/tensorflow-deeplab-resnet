@@ -19,12 +19,12 @@ from deeplab_resnet import DeepLabResNetModel, ImageReader, prepare_label
 
 IMG_MEAN = np.array((104.00698793,116.66876762,122.67891434), dtype=np.float32)
 
-DATA_DIRECTORY = '/home/VOCdevkit'
-DATA_LIST_PATH = './dataset/val.txt'
+DATA_DIRECTORY = 'data/cemian'
+DATA_LIST_PATH = 'dataset/cemianTrain.txt'
 IGNORE_LABEL = 255
 NUM_CLASSES = 21
 NUM_STEPS = 1449 # Number of images in the validation set.
-RESTORE_FROM = './deeplab_resnet.ckpt'
+RESTORE_FROM = 'snapshots_finetune/model.ckpt-19900'
 
 def get_arguments():
     """Parse all the arguments provided from the CLI.
@@ -70,12 +70,12 @@ def main():
         reader = ImageReader(
             args.data_dir,
             args.data_list,
-            None, # No defined input size.
+            (512,512), # No defined input size.
             False, # No random scale.
             False, # No random mirror.
             args.ignore_label,
             IMG_MEAN,
-            coord)
+            coord)  
         image, label = reader.image, reader.label
     image_batch, label_batch = tf.expand_dims(image, dim=0), tf.expand_dims(label, dim=0) # Add one batch dimension.
 
@@ -94,8 +94,12 @@ def main():
     # mIoU
     pred = tf.reshape(pred, [-1,])
     gt = tf.reshape(label_batch, [-1,])
-    weights = tf.cast(tf.less_equal(gt, args.num_classes - 1), tf.int32) # Ignoring all labels greater than or equal to n_classes.
-    mIoU, update_op = tf.contrib.metrics.streaming_mean_iou(pred, gt, num_classes=args.num_classes, weights=weights)
+#    weights = tf.cast(tf.less_equal(gt, args.num_classes - 1), tf.int32) # Ignoring all labels greater than or equal to n_classes.
+#    mIoU, update_op = tf.contrib.metrics.streaming_mean_iou(pred, gt, num_classes=args.num_classes, weights=weights)
+    indices = tf.squeeze(tf.where(tf.less_equal(gt, args.num_classes - 1)), 1)  # ignore all labels >= num_classes
+    gt = tf.cast(tf.gather(gt, indices), tf.int32)
+    pred = tf.gather(pred, indices)
+    mIoU, update_op = tf.contrib.metrics.streaming_mean_iou(pred, gt, num_classes=args.num_classes)
     
     # Set up tf session and initialize variables. 
     config = tf.ConfigProto()
